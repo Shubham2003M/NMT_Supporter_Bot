@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMT_Supporter_Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 400px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        .chat-box {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #fafafa;
+            border-radius: 5px;
+        }
+
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            max-width: 80%;
+        }
+
+        .user-message {
+            background: #007BFF;
+            color: white;
+            align-self: flex-end;
+            text-align: right;
+        }
+
+        .bot-message {
+            background: #28a745;
+            color: white;
+            align-self: flex-start;
+        }
+
+        .typing {
+            font-style: italic;
+            color: gray;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #007BFF;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <h2>College Chatbot</h2>
+        <div class="chat-box" id="chat-box"></div>
+        <div class="input-area">
+            <input type="text" id="user_input" placeholder="Ask something..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        function handleKeyPress(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        }
+
+        function sendMessage() {
+            let user_input = document.getElementById("user_input").value.trim();
+            let chatBox = document.getElementById("chat-box");
+
+            if (!user_input) return; // Don't send empty messages
+
+            // Display user message
+            chatBox.innerHTML += `<p class="message user-message">You: ${user_input}</p>`;
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to latest message
+
+            // Show bot typing indicator
+            let typingIndicator = document.createElement("p");
+            typingIndicator.classList.add("typing");
+            typingIndicator.textContent = "Bot is typing...";
+            chatBox.appendChild(typingIndicator);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // Fetch bot response
+            fetch("/get?msg=" + encodeURIComponent(user_input))
+            .then(response => response.text())
+            .then(data => {
+                chatBox.removeChild(typingIndicator);
+                chatBox.innerHTML += `<p class="message bot-message">Bot: ${data}</p>`;
+                chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll
+            })
+            .catch(() => {
+                chatBox.removeChild(typingIndicator);
+                chatBox.innerHTML += `<p class="message bot-message">Bot: Sorry, I'm having trouble responding right now.</p>`;
+            });
+
+            // Clear input field
+            document.getElementById("user_input").value = "";
+        }
+    </script>
+
+</body>
+</html>
