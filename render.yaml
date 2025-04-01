@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: chatbot-service
+    env: python
+    region: oregon  # Change this based on your region
+    plan: free  # Change to "starter" or "pro" if needed
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python app.py"
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
