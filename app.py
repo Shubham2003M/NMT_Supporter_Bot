@@ -23,19 +23,36 @@ print(f"DISCORD_BOT_TOKEN: {DISCORD_TOKEN[:5]}...")
 # Define chatbot responses with case-insensitive regex patterns
 pairs = [
     [r"(?i)\bhi\b|\bhello\b|\bhey\b", ["Hello! How can I assist you today?"]],
-    [r"(?i)\bOSC Los\b|\bOSCLOS\b|\bosc|\b|\bOptical Line Fail\b|\bOptical Line Failed\b|\bOpticalLine\b|\bLD_Input\b|\bLD Input\b|\blos\b", ["you need to check fiber where is fault generally its occurred when fiber cut is happened"]],
-    [r"(?i)\bPower Failure - A\b|\bPower Failure - B\b|\bPower\b", ["This alarm is raised against a power feed when the shelf processor detects that low or no voltage exists on the A or B backplane power feed. This alarm can also be raised against a fused Power Input Card when the fuse cartridge has been removed, or if the indicator fuse is not present on the card and the main fuse has blown."]],
-    [r"(?i)\bShutoff Threshold Crossed\b|\bShutoff\b", ["This alarm is raised against an AMP facility when the total input optical power to the amplifier has fallen below the provisioned Shutoff Threshold level.The conditions that can cause the input power level to fall below the threshold level include :? now you ned to check whole subnet fiber is there any Service impacted alarm present or not if thrn check attenutor"]],
-    [r"(?i)\bhigh Received Span loss\b|\bSpan Loss\b|\bSpan\b", ["Need to clear degradation, take OTDR and LSPM and check where is the degradation and how much it's degrade at which location if there is no issue in fiber then share OTDR and LSPM to Noc and take POA accordingly.."]],
-    [r"(?i)\bHigh Fiber Loss\b|\bHighFiber\b|\bHFL\b", ["Check internal patching, clean port, and patch chord..."]],
+    
     [r"(?i)\bAPR\b|\bAutomatic Power Reduction\b|\bAPR alarm\b|\bresolve APR alarm\b", 
-    ["This alarm occurs due to dirty ports. Clean the TX pigatil and Patch chord and FMS port and Pigatil, if still alarm persists then you need to clean device port , if still persists them you need to change patch chord."]],
-    [r"(?i)\b(.*)Circuit Pack Fail\b", ["Kindly arrange FE at site with a spare card of the same PEC code...Perform Soft Reset then warm Reset from noc then take logs and JOJI if still alarm persists then replace the card"]],
-    [r"(?i)\bLow Orl\b|\bORL\b|\borl\b|\bLow Optical Return Loss at Output\b", 
-     ["This alarm is raised against an AMP...need to Clean TX pigtail , patch chord and"]],
+    ["This alarm occurs due to dirty ports. Clean the TX pigatil and Patch chord and FMS port and Pigatil, if still alarm persists then you need to clean device port, if still persists then you need to change patch chord."]],
+
+    [r"(?i)\bOSC Los\b|\bOSCLOS\b|\bosc\b|\bOptical Line Fail\b|\bOptical Line Failed\b|\bOpticalLine\b|\bLD_Input\b|\bLD Input\b|\blos\b", 
+    ["You need to check fiber where the fault is generally occurring. This usually happens due to fiber cuts."]],
+    
+    [r"(?i)\bPower Failure - A\b|\bPower Failure - B\b|\bPower\b", 
+    ["This alarm is raised against a power feed when the shelf processor detects low or no voltage on the A or B backplane power feed."]],
+    
+    [r"(?i)\bShutoff Threshold Crossed\b|\bShutoff\b", 
+    ["This alarm is raised against an AMP facility when the total input optical power to the amplifier has fallen below the provisioned Shutoff Threshold level."]],
+
+    [r"(?i)\bhigh Received Span loss\b|\bSpan Loss\b|\bSpan\b", 
+    ["Need to clear degradation, take OTDR and LSPM and check where the degradation is happening."]],
+
+    [r"(?i)\bHigh Fiber Loss\b|\bHighFiber\b|\bHFL\b", 
+    ["Check internal patching, clean port, and patch chord."]],
+
+    [r"(?i)\b(.*)Circuit Pack Fail\b", 
+    ["Kindly arrange FE at site with a spare card of the same PEC code. Perform Soft Reset, then Warm Reset from NOC, then take logs and JOJI. If the alarm persists, replace the card."]],
+
+    [r"(?i)\bLow Orl\b|\bORL\b|\blow optical return loss at output\b", 
+    ["This alarm is raised against an AMP. You need to clean the TX pigtail, patch chord, and device port."]],
+
     [r"(?i)\bbye\b|\bgoodbye\b", ["Goodbye! Have a great day!"]],
+
     [r"(?i)(.*)", ["I'm not sure about that. Please contact the support team."]]
 ]
+
 
 chatbot = Chat(pairs, reflections)
 
