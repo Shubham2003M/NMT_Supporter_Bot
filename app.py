@@ -23,26 +23,93 @@ print(f"DISCORD_BOT_TOKEN: {DISCORD_TOKEN[:5]}...")
 user_device_map = {}
 user_alarm_category = {}
 
-# Alarm data
 ciena_alarms = {
     "hardware": {
         "circuit pack failed": (
-            "When a Circuit Pack Failed alarm is raised, some hardware may not be operational.\n"
-            "This can cause inaccuracies in the PM counts for facilities on this circuit pack.\n"
-            "➢ Resolution:\n"
-            "(!) Identify the Card & module raising the alarm.\n"
-            "(!!) Card physically Jack out & Properly Jack in.\n"
-            "(!!!) Perform Warm Restart to Card. (!V) Perform Cold Restart to Card.\n"
-            "Path for Cold Restart: Ne Login →Fault →Restart →Select Card →Select Warm or Cold →OK\n"
-            "(!V) If the alarm persists after 10 minutes then replace the Card & module (Same Pack code).\n"
+            "When a Circuit Pack Failed alarm is raised, some hardware may not be operational.
+"
+            "This can cause inaccuracies in the PM counts for facilities on this circuit pack.
+"
+            "➢ Resolution:
+"
+            "(!) Identify the Card & module raising the alarm.
+"
+            "(!!) Card physically Jack out & Properly Jack in.
+"
+            "(!!!) Perform Warm Restart to Card. (!V) Perform Cold Restart to Card.
+"
+            "Path for Cold Restart: Ne Login →Fault →Restart →Select Card →Select Warm or Cold →OK
+"
+            "(!V) If the alarm persists after 10 minutes then replace the Card & module (Same Pack code).
+"
             "(V) If the alarm does not clear, contact your next level of support."
+        ),
+        "circuit pack missing": (
+            "This alarm is raised when a slot is provisioned and no circuit pack is in the designated slot.
+"
+            "➢ Resolution:
+"
+            "(!) Identify the Card & module raising the alarm.
+"
+            "(!!) If card is inserted in Mux then Perform Warm & Cold Restart to Card (Module).
+"
+            "(!!!) If alarm persists after 10 minutes replace the Card & module (Same Pack code).
+"
+            "(V) If alarm still does not clear, escalate to your next level of support."
+        ),
+        "circuit pack mismatch": (
+            "This alarm occurs when the physical inventory in a shelf does not match the provisioned part number.
+"
+            "➢ Resolution:
+"
+            "(!) Identify the Card & module raising the alarm.
+"
+            "(!!) Go to Equipment & Facility Provisioning → Select Inventory.
+"
+            "(!!!) Ensure PECs match or correct mismatched module.
+"
+            "(!V) Replace mismatched Card & module.
+"
+            "(V) If alarm still does not clear, contact support."
         )
     },
-    "fiber": {}
+    "fiber": {
+        "high fiber loss": (
+            "This alarm is raised when measured loss between ports exceeds the provisioned thresholds.
+"
+            "➢ Resolution:
+"
+            "(!) Check all fibers between the port and Far End.
+"
+            "(!!) Verify LC-LC cable is properly connected.
+"
+            "(!!!) If alarm persists after 5 minutes, clean the cables between Amplifier and WSS.
+"
+            "(!V) Clean Equipment port, replace LC-LC cable, and recheck alarm.
+"
+            "(V) Check HFL on ADJ fiber after complete troubleshooting."
+        ),
+        "optical line failed": (
+            "This alarm indicates a fiber break or disconnect between neighboring sites.
+"
+            "➢ Resolution:
+"
+            "(!) Record the upstream node from the Actual Far-End Address.
+"
+            "(!!) Use a power source and meter to check loss.
+"
+            "(!!!) Clean all optical connections at both upstream and downstream nodes.
+"
+            "(!V) Replace damaged patch cords.
+"
+            "(V) If alarm does not clear, contact next level support."
+        )
+    }
 }
 
 # Flask setup
 app = Flask(__name__)
+app.secret_key = "nmt_secret_key"
 
 @app.route("/")
 def home():
@@ -50,8 +117,43 @@ def home():
 
 @app.route("/get", methods=["GET"])
 def chatbot_response():
-    user_message = request.args.get("msg")
-    return "This feature is only supported in bots."
+    user_message = request.args.get("msg", "").strip().lower()
+
+    if "step" not in session:
+        session["step"] = "device"
+        return "👋 Welcome to the NMT Support Bot! Please select your device: Ciena, Huawei, Muse, Nokia PSS"
+
+    if session["step"] == "device":
+        if user_message in ["ciena", "huawei", "muse", "nokia pss"]:
+            session["device"] = user_message
+            session["step"] = "category"
+            return f"✅ Device selected: {user_message.title()}. Now choose alarm category: Hardware or Fiber."
+        else:
+            return "Please choose a valid device: Ciena, Huawei, Muse, Nokia PSS"
+
+    elif session["step"] == "category":
+        if user_message in ["hardware", "fiber"]:
+            session["category"] = user_message
+            session["step"] = "alarm"
+            if session["device"] == "ciena" and user_message == "hardware":
+                return "Please select the alarm: Circuit Pack Failed"
+            else:
+                return "Currently only 'Circuit Pack Failed' under Ciena > Hardware is supported."
+        else:
+            return "Please choose a valid category: Hardware or Fiber"
+
+    elif session["step"] == "alarm":
+        if (
+            session.get("device") == "ciena" and
+            session.get("category") == "hardware" and
+            user_message == "circuit pack failed"
+        ):
+            session.clear()
+            return ciena_alarms["hardware"]["circuit pack failed"]
+        else:
+            return "Alarm not recognized. Try 'Circuit Pack Failed'."
+
+    return "I'm not sure how to handle that."
 
 # Telegram Bot handlers
 async def telegram_start(update: Update, context: CallbackContext) -> None:
@@ -121,7 +223,7 @@ async def on_ready():
 async def on_message(message):
     if message.author == bot.user:
         return
-    await message.channel.send("Discord bot currently supports Telegram-only structured flow.")
+    await message.channel.send("Discord bot currently supports Telegram and Web structured flow only.")
     await bot.process_commands(message)
 
 # Run Flask in separate thread
