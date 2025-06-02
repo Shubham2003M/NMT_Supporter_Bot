@@ -108,6 +108,11 @@
                 sendMessage();
             }
         }
+        function sendMessage(msg)
+            {
+            document.getElementById('userInput').value = msg;
+            document.getElementById('sendBtn').click();}
+         
 
         function sendMessage() {
             let user_input = document.getElementById("user_input").value.trim();
