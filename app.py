@@ -79,6 +79,13 @@ def chatbot_response():
 
     return "I'm not sure how to handle that."
 
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    # Bind to 0.0.0.0 so Render can access it from outside the container
+    app.run(host="0.0.0.0", port=port)
+
+
 # Ensure your HTML template includes:
 # <script>
 # function sendMessage(msg) {
