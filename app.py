@@ -2,27 +2,41 @@ import os
 import asyncio
 import threading
 import discord
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session
 from dotenv import load_dotenv
-from nltk.chat.util import Chat, reflections
 from discord.ext import commands
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+
+# Flask must be defined before use
+app = Flask(__name__)
+app.secret_key = "nmt_secret_key"
 
 # Load environment variables
 load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-if not DISCORD_TOKEN or not TELEGRAM_TOKEN:
-    print("\u274C Error: One or more bot tokens are missing!")
-    exit(1)
-print(f"DISCORD_BOT_TOKEN: {DISCORD_TOKEN[:5]}...") 
-
-# User states
+# User session states
 user_device_map = {}
 user_alarm_category = {}
-...
+
+# Alarm data (include your ciena_alarms dictionary here)
+ciena_alarms = {
+    "hardware": {
+        "Circuit Pack Failed": "Example resolution for Circuit Pack Failed.",
+        "Circuit Pack Missing": "Example resolution for Circuit Pack Missing."
+    },
+    "fiber": {
+        "High Fiber Loss": "Example resolution for High Fiber Loss.",
+        "Optical Line Failed": "Example resolution for Optical Line Failed."
+    }
+}
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
 @app.route("/get", methods=["GET"])
 def chatbot_response():
     user_message = request.args.get("msg", "").strip().lower()
@@ -65,8 +79,10 @@ def chatbot_response():
 
     return "I'm not sure how to handle that."
 
-# In your HTML template (index.html), ensure there's a JS function like this:
+# Ensure your HTML template includes:
+# <script>
 # function sendMessage(msg) {
 #   document.getElementById('userInput').value = msg;
 #   document.getElementById('sendBtn').click();
 # }
+# </script>
