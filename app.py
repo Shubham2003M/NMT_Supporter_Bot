@@ -1,3 +1,27 @@
+import os
+import asyncio
+import threading
+import discord
+from flask import Flask, render_template, request
+from dotenv import load_dotenv
+from nltk.chat.util import Chat, reflections
+from discord.ext import commands
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+
+# Load environment variables
+load_dotenv()
+DISCORD_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+if not DISCORD_TOKEN or not TELEGRAM_TOKEN:
+    print("\u274C Error: One or more bot tokens are missing!")
+    exit(1)
+print(f"DISCORD_BOT_TOKEN: {DISCORD_TOKEN[:5]}...") 
+
+# User states
+user_device_map = {}
+user_alarm_category = {}
 ...
 @app.route("/get", methods=["GET"])
 def chatbot_response():
