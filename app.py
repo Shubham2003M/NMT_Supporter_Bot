@@ -1,8 +1,8 @@
-from flask import Flask, render_template, request, session
 import os
 import asyncio
 import threading
 import discord
+from flask import Flask, render_template, request, session
 from dotenv import load_dotenv
 from discord.ext import commands
 from telegram import Update, ReplyKeyboardMarkup
@@ -13,19 +13,18 @@ load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-if not DISCORD_TOKEN or not TELEGRAM_TOKEN:
-    print("\u274C Error: One or more bot tokens are missing!")
-    exit(1)
-print(f"DISCORD_BOT_TOKEN: {DISCORD_TOKEN[:5]}...")
+# Initialize app
+app = Flask(__name__)
+app.secret_key = "nmt_secret_key"
 
-# User states
+# Store user sessions for Telegram
 user_device_map = {}
 user_alarm_category = {}
 
+# Alarm data
 ciena_alarms = {
     "hardware": {
-        "circuit pack failed": (
-            '''When a Circuit Pack Failed alarm is raised, some hardware may not be operational.
+        "Circuit Pack Failed": '''When a Circuit Pack Failed alarm is raised, some hardware may not be operational.
 This can cause inaccuracies in the PM counts for facilities on this circuit pack.
 ➢ Resolution:
 (!) Identify the Card & module raising the alarm.
@@ -33,51 +32,38 @@ This can cause inaccuracies in the PM counts for facilities on this circuit pack
 (!!!) Perform Warm Restart to Card. (!V) Perform Cold Restart to Card.
 Path for Cold Restart: Ne Login →Fault →Restart →Select Card →Select Warm or Cold →OK
 (!V) If the alarm persists after 10 minutes then replace the Card & module (Same Pack code).
-(V) If the alarm does not clear, contact your next level of support.'''
-        ),
-        "circuit pack missing": (
-            '''This alarm is raised when a slot is provisioned and no circuit pack is in the designated slot.
+(V) If the alarm does not clear, contact your next level of support.''',
+        "Circuit Pack Missing": '''This alarm is raised when a slot is provisioned and no circuit pack is in the designated slot.
 ➢ Resolution:
 (!) Identify the Card & module raising the alarm.
 (!!) If card is inserted in Mux then Perform Warm & Cold Restart to Card (Module).
 (!!!) If alarm persists after 10 minutes replace the Card & module (Same Pack code).
-(V) If alarm still does not clear, escalate to your next level of support.'''
-        ),
-        "circuit pack mismatch": (
-            '''This alarm occurs when the physical inventory in a shelf does not match the provisioned part number.
+(V) If alarm still does not clear, escalate to your next level of support.''',
+        "Circuit Pack Mismatch": '''This alarm occurs when the physical inventory in a shelf does not match the provisioned part number.
 ➢ Resolution:
 (!) Identify the Card & module raising the alarm.
 (!!) Go to Equipment & Facility Provisioning → Select Inventory.
 (!!!) Ensure PECs match or correct mismatched module.
 (!V) Replace mismatched Card & module.
 (V) If alarm still does not clear, contact support.'''
-        )
     },
     "fiber": {
-        "high fiber loss": (
-            '''This alarm is raised when measured loss between ports exceeds the provisioned thresholds.
+        "High Fiber Loss": '''This alarm is raised when measured loss between ports exceeds the provisioned thresholds.
 ➢ Resolution:
 (!) Check all fibers between the port and Far End.
 (!!) Verify LC-LC cable is properly connected.
 (!!!) If alarm persists after 5 minutes, clean the cables between Amplifier and WSS.
 (!V) Clean Equipment port, replace LC-LC cable, and recheck alarm.
-(V) Check HFL on ADJ fiber after complete troubleshooting.'''
-        ),
-        "optical line failed": (
-            '''This alarm indicates a fiber break or disconnect between neighboring sites.
+(V) Check HFL on ADJ fiber after complete troubleshooting.''',
+        "Optical Line Failed": '''This alarm indicates a fiber break or disconnect between neighboring sites.
 ➢ Resolution:
 (!) Record the upstream node from the Actual Far-End Address.
 (!!) Use a power source and meter to check loss.
 (!!!) Clean all optical connections at both upstream and downstream nodes.
 (!V) Replace damaged patch cords.
 (V) If alarm does not clear, contact next level support.'''
-        )
     }
 }
-
-# Flask setup
-app = Flask(__name__)
-app.secret_key = "nmt_secret_key"
 
 @app.route("/")
 def home():
@@ -95,7 +81,7 @@ def chatbot_response():
         if user_message in ["ciena", "huawei", "muse", "nokia pss"]:
             session["device"] = user_message
             session["step"] = "category"
-            return f"✅ Device selected: {user_message.title()}. Now choose alarm category: Hardware or Fiber."
+            return "✅ Device selected: {}. Choose alarm category: [Hardware] [Fiber]".format(user_message.title())
         else:
             return "Please choose a valid device: Ciena, Huawei, Muse, Nokia PSS"
 
@@ -103,105 +89,118 @@ def chatbot_response():
         if user_message in ["hardware", "fiber"]:
             session["category"] = user_message
             session["step"] = "alarm"
-            available_alarms = list(ciena_alarms.get(user_message, {}).keys())
-            alarm_list = ", ".join(al.title() for al in available_alarms)
-            return f"Please select the alarm: {alarm_list}"
+            alarms = list(ciena_alarms.get(user_message, {}).keys())
+            if alarms:
+                return "Please select an alarm: " + ", ".join(alarms)
+            else:
+                return "No alarms found in this category."
         else:
             return "Please choose a valid category: Hardware or Fiber"
 
     elif session["step"] == "alarm":
         category = session.get("category")
-        if session.get("device") == "ciena" and category in ciena_alarms:
-            response = ciena_alarms[category].get(user_message)
-            if response:
-                session.clear()
-                return response
-            return "Alarm not recognized. Please try again with a valid alarm name."
+        alarm_dict = ciena_alarms.get(category, {})
+        selected_alarm = None
+        for alarm in alarm_dict:
+            if user_message == alarm.lower():
+                selected_alarm = alarm
+                break
+        if selected_alarm:
+            session.clear()
+            return alarm_dict[selected_alarm]
+        return "Alarm not recognized. Please try again."
 
     return "I'm not sure how to handle that."
 
-# Telegram Bot handlers
-async def telegram_start(update: Update, context: CallbackContext) -> None:
+# Telegram Bot Setup
+async def telegram_start(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user_device_map[user_id] = None
     user_alarm_category[user_id] = None
     keyboard = [["Ciena", "Huawei"], ["Muse", "Nokia PSS"]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-    await update.message.reply_text("\U0001F44B Welcome to the NMT Support Bot.\nPlease choose your device:", reply_markup=reply_markup)
+    await update.message.reply_text("👋 Welcome! Please select your device:", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True))
 
-async def telegram_handle_message(update: Update, context: CallbackContext) -> None:
+async def telegram_handle_message(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     text = update.message.text.strip().lower()
 
-    if user_id not in user_device_map or user_device_map[user_id] is None:
+    if user_device_map.get(user_id) is None:
         if text in ["ciena", "huawei", "muse", "nokia pss"]:
             user_device_map[user_id] = text
             user_alarm_category[user_id] = None
             keyboard = [["Hardware", "Fiber"]]
-            await update.message.reply_text(f"✅ Device selected: {text.title()}\nChoose alarm category:", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True))
+            await update.message.reply_text("✅ Device selected: {}\nChoose alarm category:".format(text.title()), reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True))
         else:
-            await update.message.reply_text("Please choose a valid device: Ciena, Huawei, Muse, Nokia PSS")
+            keyboard = [["Ciena", "Huawei"], ["Muse", "Nokia PSS"]]
+            await update.message.reply_text("Please select a valid device:", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True))
         return
 
-    if user_alarm_category[user_id] is None:
+    if user_alarm_category.get(user_id) is None:
         if text in ["hardware", "fiber"]:
             user_alarm_category[user_id] = text
-            alarm_keys = list(ciena_alarms.get(text, {}).keys())
-            if alarm_keys:
-                keyboard = [[alarm.title()] for alarm in alarm_keys]
-                await update.message.reply_text("Please select the alarm:", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True))
+            alarms = list(ciena_alarms.get(text, {}).keys())
+            if alarms:
+                alarm_keyboard = [[alarm] for alarm in alarms]
+                await update.message.reply_text("Please select the alarm:", reply_markup=ReplyKeyboardMarkup(alarm_keyboard, one_time_keyboard=True))
             else:
-                await update.message.reply_text("No alarms available for this category.")
+                await update.message.reply_text("No alarms found for this category.")
         else:
-            await update.message.reply_text("Please choose a valid alarm category: Hardware, Fiber")
+            await update.message.reply_text("Please select a valid category:", reply_markup=ReplyKeyboardMarkup([["Hardware", "Fiber"]], one_time_keyboard=True))
         return
 
-    # Respond with the alarm description
-    if user_device_map[user_id] == "ciena":
-        category = user_alarm_category[user_id]
-        if text in ciena_alarms[category]:
-            await update.message.reply_text(ciena_alarms[category][text])
-            user_device_map[user_id] = None
-            user_alarm_category[user_id] = None
-        else:
-            await update.message.reply_text("Unknown alarm. Try one of the listed alarms.")
-        return
+    category = user_alarm_category[user_id]
+    matched_alarm = next((a for a in ciena_alarms[category] if a.lower() == text), None)
+    if matched_alarm:
+        await update.message.reply_text(ciena_alarms[category][matched_alarm])
+        user_device_map[user_id] = None
+        user_alarm_category[user_id] = None
+    else:
+        alarms = [[a] for a in ciena_alarms[category].keys()]
+        await update.message.reply_text("Alarm not recognized. Please select from the list:", reply_markup=ReplyKeyboardMarkup(alarms, one_time_keyboard=True))
 
-# Telegram bot execution
-async def run_telegram_bot():
+@app.route("/webhook", methods=["POST"])
+def telegram_webhook():
+    from telegram import Update
+    from telegram.ext import get_update_queue
+    import json
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put_nowait(update)
+    return "OK"
+
+async def run_telegram_webhook():
+    global application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     application.add_handler(CommandHandler("start", telegram_start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_handle_message))
-    print("\u2705 Telegram bot is running...")
+    print("✅ Telegram bot running with webhook...")
     await application.initialize()
     await application.start()
-    await application.updater.start_polling()
+    await application.bot.set_webhook(url="https://nmt-supporter-bot-1.onrender.com/webhook")
 
-# Discord bot
+# Discord Bot (placeholder)
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"\u2705 Logged in as {bot.user}!")
+    print(f"✅ Logged in as {bot.user}!")
 
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
-    await message.channel.send("Discord bot currently supports Telegram and Web structured flow only.")
+    await message.channel.send("This bot supports Telegram and Web interfaces only.")
     await bot.process_commands(message)
 
-# Run Flask in separate thread
+# Launch Flask and Telegram concurrently
 def run_flask():
     app.run(host="0.0.0.0", port=5000, use_reloader=False)
 
-# Main run method
 async def main():
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
-    await asyncio.gather(run_telegram_bot(), bot.start(DISCORD_TOKEN))
+    await asyncio.gather(run_telegram_webhook(), bot.start(DISCORD_TOKEN))
 
 if __name__ == "__main__":
     asyncio.run(main())
