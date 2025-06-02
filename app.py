@@ -1,10 +1,9 @@
+from flask import Flask, render_template, request, session
 import os
 import asyncio
 import threading
 import discord
-from flask import Flask, render_template, request
 from dotenv import load_dotenv
-from nltk.chat.util import Chat, reflections
 from discord.ext import commands
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
@@ -17,7 +16,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not DISCORD_TOKEN or not TELEGRAM_TOKEN:
     print("\u274C Error: One or more bot tokens are missing!")
     exit(1)
-print(f"DISCORD_BOT_TOKEN: {DISCORD_TOKEN[:5]}...") 
+print(f"DISCORD_BOT_TOKEN: {DISCORD_TOKEN[:5]}...")
 
 # User states
 user_device_map = {}
@@ -26,83 +25,52 @@ user_alarm_category = {}
 ciena_alarms = {
     "hardware": {
         "circuit pack failed": (
-            "When a Circuit Pack Failed alarm is raised, some hardware may not be operational.
-"
-            "This can cause inaccuracies in the PM counts for facilities on this circuit pack.
-"
-            "➢ Resolution:
-"
-            "(!) Identify the Card & module raising the alarm.
-"
-            "(!!) Card physically Jack out & Properly Jack in.
-"
-            "(!!!) Perform Warm Restart to Card. (!V) Perform Cold Restart to Card.
-"
-            "Path for Cold Restart: Ne Login →Fault →Restart →Select Card →Select Warm or Cold →OK
-"
-            "(!V) If the alarm persists after 10 minutes then replace the Card & module (Same Pack code).
-"
-            "(V) If the alarm does not clear, contact your next level of support."
+            '''When a Circuit Pack Failed alarm is raised, some hardware may not be operational.
+This can cause inaccuracies in the PM counts for facilities on this circuit pack.
+➢ Resolution:
+(!) Identify the Card & module raising the alarm.
+(!!) Card physically Jack out & Properly Jack in.
+(!!!) Perform Warm Restart to Card. (!V) Perform Cold Restart to Card.
+Path for Cold Restart: Ne Login →Fault →Restart →Select Card →Select Warm or Cold →OK
+(!V) If the alarm persists after 10 minutes then replace the Card & module (Same Pack code).
+(V) If the alarm does not clear, contact your next level of support.'''
         ),
         "circuit pack missing": (
-            "This alarm is raised when a slot is provisioned and no circuit pack is in the designated slot.
-"
-            "➢ Resolution:
-"
-            "(!) Identify the Card & module raising the alarm.
-"
-            "(!!) If card is inserted in Mux then Perform Warm & Cold Restart to Card (Module).
-"
-            "(!!!) If alarm persists after 10 minutes replace the Card & module (Same Pack code).
-"
-            "(V) If alarm still does not clear, escalate to your next level of support."
+            '''This alarm is raised when a slot is provisioned and no circuit pack is in the designated slot.
+➢ Resolution:
+(!) Identify the Card & module raising the alarm.
+(!!) If card is inserted in Mux then Perform Warm & Cold Restart to Card (Module).
+(!!!) If alarm persists after 10 minutes replace the Card & module (Same Pack code).
+(V) If alarm still does not clear, escalate to your next level of support.'''
         ),
         "circuit pack mismatch": (
-            "This alarm occurs when the physical inventory in a shelf does not match the provisioned part number.
-"
-            "➢ Resolution:
-"
-            "(!) Identify the Card & module raising the alarm.
-"
-            "(!!) Go to Equipment & Facility Provisioning → Select Inventory.
-"
-            "(!!!) Ensure PECs match or correct mismatched module.
-"
-            "(!V) Replace mismatched Card & module.
-"
-            "(V) If alarm still does not clear, contact support."
+            '''This alarm occurs when the physical inventory in a shelf does not match the provisioned part number.
+➢ Resolution:
+(!) Identify the Card & module raising the alarm.
+(!!) Go to Equipment & Facility Provisioning → Select Inventory.
+(!!!) Ensure PECs match or correct mismatched module.
+(!V) Replace mismatched Card & module.
+(V) If alarm still does not clear, contact support.'''
         )
     },
     "fiber": {
         "high fiber loss": (
-            "This alarm is raised when measured loss between ports exceeds the provisioned thresholds.
-"
-            "➢ Resolution:
-"
-            "(!) Check all fibers between the port and Far End.
-"
-            "(!!) Verify LC-LC cable is properly connected.
-"
-            "(!!!) If alarm persists after 5 minutes, clean the cables between Amplifier and WSS.
-"
-            "(!V) Clean Equipment port, replace LC-LC cable, and recheck alarm.
-"
-            "(V) Check HFL on ADJ fiber after complete troubleshooting."
+            '''This alarm is raised when measured loss between ports exceeds the provisioned thresholds.
+➢ Resolution:
+(!) Check all fibers between the port and Far End.
+(!!) Verify LC-LC cable is properly connected.
+(!!!) If alarm persists after 5 minutes, clean the cables between Amplifier and WSS.
+(!V) Clean Equipment port, replace LC-LC cable, and recheck alarm.
+(V) Check HFL on ADJ fiber after complete troubleshooting.'''
         ),
         "optical line failed": (
-            "This alarm indicates a fiber break or disconnect between neighboring sites.
-"
-            "➢ Resolution:
-"
-            "(!) Record the upstream node from the Actual Far-End Address.
-"
-            "(!!) Use a power source and meter to check loss.
-"
-            "(!!!) Clean all optical connections at both upstream and downstream nodes.
-"
-            "(!V) Replace damaged patch cords.
-"
-            "(V) If alarm does not clear, contact next level support."
+            '''This alarm indicates a fiber break or disconnect between neighboring sites.
+➢ Resolution:
+(!) Record the upstream node from the Actual Far-End Address.
+(!!) Use a power source and meter to check loss.
+(!!!) Clean all optical connections at both upstream and downstream nodes.
+(!V) Replace damaged patch cords.
+(V) If alarm does not clear, contact next level support.'''
         )
     }
 }
@@ -135,23 +103,20 @@ def chatbot_response():
         if user_message in ["hardware", "fiber"]:
             session["category"] = user_message
             session["step"] = "alarm"
-            if session["device"] == "ciena" and user_message == "hardware":
-                return "Please select the alarm: Circuit Pack Failed"
-            else:
-                return "Currently only 'Circuit Pack Failed' under Ciena > Hardware is supported."
+            available_alarms = list(ciena_alarms.get(user_message, {}).keys())
+            alarm_list = ", ".join(al.title() for al in available_alarms)
+            return f"Please select the alarm: {alarm_list}"
         else:
             return "Please choose a valid category: Hardware or Fiber"
 
     elif session["step"] == "alarm":
-        if (
-            session.get("device") == "ciena" and
-            session.get("category") == "hardware" and
-            user_message == "circuit pack failed"
-        ):
-            session.clear()
-            return ciena_alarms["hardware"]["circuit pack failed"]
-        else:
-            return "Alarm not recognized. Try 'Circuit Pack Failed'."
+        category = session.get("category")
+        if session.get("device") == "ciena" and category in ciena_alarms:
+            response = ciena_alarms[category].get(user_message)
+            if response:
+                session.clear()
+                return response
+            return "Alarm not recognized. Please try again with a valid alarm name."
 
     return "I'm not sure how to handle that."
 
@@ -181,23 +146,25 @@ async def telegram_handle_message(update: Update, context: CallbackContext) -> N
     if user_alarm_category[user_id] is None:
         if text in ["hardware", "fiber"]:
             user_alarm_category[user_id] = text
-            if user_device_map[user_id] == "ciena" and text == "hardware":
-                keyboard = [["Circuit Pack Failed"]]
+            alarm_keys = list(ciena_alarms.get(text, {}).keys())
+            if alarm_keys:
+                keyboard = [[alarm.title()] for alarm in alarm_keys]
                 await update.message.reply_text("Please select the alarm:", reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True))
             else:
-                await update.message.reply_text("Currently only 'Circuit Pack Failed' under Ciena > Hardware is supported.")
+                await update.message.reply_text("No alarms available for this category.")
         else:
             await update.message.reply_text("Please choose a valid alarm category: Hardware, Fiber")
         return
 
     # Respond with the alarm description
-    if user_device_map[user_id] == "ciena" and user_alarm_category[user_id] == "hardware":
-        if text in ciena_alarms["hardware"]:
-            await update.message.reply_text(ciena_alarms["hardware"][text])
+    if user_device_map[user_id] == "ciena":
+        category = user_alarm_category[user_id]
+        if text in ciena_alarms[category]:
+            await update.message.reply_text(ciena_alarms[category][text])
             user_device_map[user_id] = None
             user_alarm_category[user_id] = None
         else:
-            await update.message.reply_text("Unknown alarm. Try 'Circuit Pack Failed'.")
+            await update.message.reply_text("Unknown alarm. Try one of the listed alarms.")
         return
 
 # Telegram bot execution
